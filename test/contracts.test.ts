@@ -590,7 +590,7 @@ import {
   TypeEnv,
 } from "../examples/stlc.ts";
 
-Deno.test("STLCTypeCheck — @requires on app rejects ill-typed terms gracefully", async (t) => {
+Deno.test("STLCTypeCheck — app typing: well-typed parses; ill-typed rejected via appProd", async (t) => {
   const tc = new STLCTypeCheck();
   const env = TypeEnv.empty();
 
@@ -604,7 +604,8 @@ Deno.test("STLCTypeCheck — @requires on app rejects ill-typed terms gracefully
     "ill-typed application (x x) yields empty forest, no throw",
     () => {
       // \\x:Int. x x  — x : Int applied to x : Int, but Int is not a function type.
-      // @requires fails → undefined → empty() → Set {}
+      // The appProd override checks the premise inline and returns empty()
+      // → Set {} (a bare @requires failure would surface undefined instead).
       const result = tc.parseWith("\\x:Int. x x", env);
       assertEquals(result.size, 0);
     },

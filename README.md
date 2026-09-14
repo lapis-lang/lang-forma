@@ -392,7 +392,7 @@ inside the semantic action, returning a sentinel on failure:
 // Traditional: the inference rule buried in an if-statement
 protected app(fn: Type, arg: Type): Type {
     if (!(fn instanceof TFun) || !typeEq(fn.dom, arg)) {
-        return undefined as unknown as Type;  // premise failed — reject
+        return undefined as unknown as Type;  // premise failed — sentinel
     }
     return (fn as TFun).cod;                   // conclusion
 }
@@ -401,10 +401,22 @@ protected app(fn: Type, arg: Type): Type {
 This library ships a small **Design by Contract** system — `@requires`,
 `@ensures`, `@invariant`, plus `assert`, `implies`, `iff` — that lets you
 declare the premises and conclusion *as* the rule, rather than burying them
-in imperative guards. The key adaptation for the parsing domain: **`@requires`
-fails gracefully** (the branch produces an empty parse forest) rather than
-throwing, because a failed premise means the inference rule doesn't apply —
-the term is ill-typed, not a crashed program.
+in imperative guards. The system splits into two layers:
+
+- **Rule model (declarative)** — the contracts attach the premises and
+  conclusion to the action as inspectable metadata: `Grammar.metadata`
+  exposes the predicates, `Grammar.rules` reconstructs the inference
+  rules, and the metatheory engine verifies Progress/Preservation over
+  them. `@ensures`/`@invariant` also enforce at runtime — a violated
+  conclusion is a *bug*, so they throw `ContractError`.
+- **Parse rejection (runtime)** — a failed premise is *not* a bug: the
+  inference rule simply doesn't apply (the term is ill-typed, not a
+  crashed program), so the premise doesn't throw — the action returns
+  `undefined`, and that value flows into the parse forest like any other
+  semantic value. A bare `@requires` failure therefore does **not**
+  produce an empty forest; rejecting the branch is the production
+  path's job — check the premise inline and return `empty()` (the
+  `appProd` pattern in `examples/stlc.ts`).
 
 ```ts
 // With contracts: the rule is declared, not buried.
@@ -418,7 +430,10 @@ protected app(fn: Type, _arg: Type): Type {
     return (fn as TFun).cod;                     // the rule's body
 }
 
-new STLCTypeCheck().parseWith('\\x:Int. x x', TypeEnv.empty());  // Set {} — ill-typed, no throw
+new STLCTypeCheck().parseWith('\\x:Int. x x', TypeEnv.empty());
+// → Set {} — ill-typed, no throw. The rejection comes from
+// STLCTypeCheck's `appProd` override; a bare `@requires` failure would
+// surface `undefined` in the forest instead.
 ```
 
 ### `assert` / `implies` / `iff` — inline logical primitives
@@ -448,9 +463,10 @@ iff(result instanceof TVar, /* condition */);       // (p && q) || (!p && !q)
 ### `@requires` — inference-rule premises
 
 Declares the premises above the line. On failure, the method returns
-`undefined` — the calling `chain`/`.map` callback then produces `empty()`,
-so the branch is rejected without raising an exception. This replaces the
-manual `if`-guard-and-return-sentinel pattern with a declarative premise:
+`undefined` — no exception is raised, and the `undefined` flows into the
+parse forest like any other semantic value; nothing converts it to
+`empty()`. This replaces the manual `if`-guard-and-return-sentinel
+pattern with a declarative premise:
 
 ```ts
 import { requires } from '@lapis-lang/lang-forma';
@@ -462,6 +478,13 @@ protected varRef(name: string, ctx: unknown): Type {
     return (ctx as TypeEnv).lookup(name) as Type;
 }
 ```
+
+Note: a failed premise does not reject the branch. Parsing an unbound
+variable with an empty `Γ` yields a forest of size 1 containing
+`undefined` — the premise failed gracefully, but nothing pruned the
+branch. Strict rejection is the production path's job: check the premise
+in the production and return `empty()`, as `STLCTypeCheck`'s `appProd`
+override does for applications.
 
 ### `@ensures` — inference-rule conclusions
 
@@ -757,7 +780,7 @@ The `@rule` decorator can wrap either a **getter** or a **method**:
 | `assert(c, m?)` | function | Inline assertion; throws `AssertionError` on failure; narrows `c`'s type. |
 | `implies(p, q)` | function | Material implication `!p \|\| q`. |
 | `iff(p, q)` | function | Biconditional `(p && q) \|\| (!p && !q)`. |
-| `@requires` | decorator | Precondition `(self, ...args) => boolean`; on failure returns `undefined` (graceful → `empty()`). `args` types are inferred from the decorated method. OR-ed across inheritance. |
+| `@requires` | decorator | Precondition `(self, ...args) => boolean`; on failure the action returns `undefined` (graceful, no throw) — the value flows into the parse forest, so rejection is the production path's job (`empty()`). `args` types are inferred from the decorated method. OR-ed across inheritance. |
 | `@ensures` | decorator | Postcondition `(self, args, old, result) => boolean`; throws `ContractError` on failure. `args`/`result` inferred from the method; `old` is an `OldSnapshot<This>` (data-only). AND-ed across inheritance. |
 | `@invariant` | decorator | Class invariant; checked after construction and after each contracted call. AND-ed across inheritance. |
 | `@rescue` | decorator | Parse-failure recovery; handler `(self, failure, args, retry?) => unknown` invoked when a production yields an empty forest. `args` inferred from the decorated production (`Parameters`; `[]` for getters). Inherited (most-derived wins). |

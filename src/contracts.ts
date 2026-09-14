@@ -490,9 +490,11 @@ function tryInvariants(instance: object): ContractError | null {
  * ====================================================================== */
 
 /**
- * Precondition; on failure returns `undefined` (graceful → empty forest).
- * OR-ed across inheritance. The predicate's `...args` are typed as
- * `Parameters` of the decorated method — inferred, no manual annotation.
+ * Precondition; on failure returns `undefined` — the value flows into the
+ * parse forest (nothing prunes it). The production path must check the
+ * premise and return `empty()` for rejection. OR-ed across inheritance.
+ * The predicate's `...args` are typed as `Parameters` of the decorated
+ * method — inferred, no manual annotation.
  */
 export function requires<
   This extends object,
@@ -734,7 +736,9 @@ export const contractProxyHandler: ProxyHandler<object> = {
           return !anyPred;
         });
         if (!requiresOk) {
-          // graceful failure → caller produces empty(); still check invariant-after
+          // premise failed → action returns undefined (the value flows
+          // into the parse forest; rejection is the production path's
+          // job); still check invariant-after
           const invErr = tryInvariants(target);
           if (invErr !== null) throw invErr;
           return undefined;

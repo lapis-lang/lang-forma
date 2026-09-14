@@ -628,7 +628,9 @@ export class STLCAST
 
 /**
  * One-pass type checker.  `Γ ⊢ e : τ` is a parameterised production.
- * Ill-typed terms produce an empty parse forest.
+ * Ill-typed terms are rejected where a production checks the premise
+ * inline (see the `appProd` override); a bare `@requires` failure
+ * (e.g. an unbound variable) surfaces `undefined` in the forest.
  */
 export class STLCTypeCheck
   extends AbstractSTLCActions<{ expr: Type; atom: Type; type: Type }> {
@@ -720,7 +722,12 @@ export class STLCTypeCheck
     return e;
   }
 
-  /** Override `appProd` to type-check App via `chain`. */
+  /**
+   * Override `appProd` to type-check App via `chain`. This is the
+   * runtime rejection layer: the premise (domain match) is checked
+   * inline and a mismatch returns `empty()` — a bare `@requires` failure
+   * (which surfaces `undefined`) does not reject the branch by itself.
+   */
   @rule({ rule: "T-App", production: "appProd" })
   protected override appProd(ctx: unknown): Parser<Type> {
     return or(

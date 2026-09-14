@@ -3,6 +3,11 @@
   "build": {
     "dockerfile": "Dockerfile"
   },
+  "postStartCommand": "bash .devcontainer/ensure-ollama.sh",
+  // Persists the Ollama home directory (auth keys, cloud model manifests) across rebuilds.
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}-ollama,target=/home/vscode/.ollama,type=volume"
+  ],
   "customizations": {
     "vscode": {
       "extensions": [
@@ -12,13 +17,18 @@
         "GitHub.vscode-pull-request-github",
         "Ollama.ollama",
         "xadamxk.prune-stale-git-branches"
-      ]
+      ],
+      "settings": {
+        "ollama.endpoint": "http://127.0.0.1:11434"
+      }
     }
   },
   // Features to add to the dev container. More info: https://containers.dev/features.
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {
-      "version": "latest"
+      // Pinned (not "latest") so the build doesn't depend on a live
+      // `git ls-remote` version lookup, which fails on transient DNS blips.
+      "version": "2.100.0"
     },
     "ghcr.io/devcontainers-extra/features/deno:1": {
       "version": "latest"

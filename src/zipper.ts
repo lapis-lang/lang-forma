@@ -284,8 +284,10 @@ export class DelayedExp<T = unknown> extends Exp {
 }
 
 /**
- * Monadic bind — the L-attributed grammar combinator. Parses `first`, then
- * for each value `v`, calls `fn(v)` to get the second parser. See the README
+ * L-attributed bind — the pair-emitting grammar combinator. Parses `first`,
+ * then for each value `v`, calls `fn(v)` to get the second parser and parses
+ * it. The result is the pair `[v, w]` — the attribute-grammar shape, not a
+ * monadic bind in result shape (which would yield only `w`). See the README
  * for L-attributed grammar usage.
  */
 export class ChainExp<A = unknown, B = unknown> extends Exp {
@@ -396,7 +398,7 @@ export class AltCxt extends Cxt {
   }
 }
 
-/** Monadic-bind context: receives `first`'s value, calls `fn` to build the second parser, then flows the pair `[firstVal, secondVal]` upward. */
+/** L-attributed-bind context: receives `first`'s value, calls `fn` to build the second parser, then flows the pair `[firstVal, secondVal]` upward. */
 export class ChainCxt extends Cxt {
   readonly derivPath: string;
   constructor(

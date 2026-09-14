@@ -241,7 +241,7 @@ Deno.test("map — non-throwing branch still succeeds alongside a throwing one",
   assertEquals(parse(p, "a"), ["ok"]);
 });
 
-/* ─── chain (monadic bind) ───────────────────────────────────────────── */
+/* ─── chain (pair-emitting bind) ────────────────────────────────────── */
 
 Deno.test("chain — basic [T, U] pairing", async (t) => {
   // Parse 'a', then use the result to parse 'b'. Result is ["a", "b"].

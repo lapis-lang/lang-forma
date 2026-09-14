@@ -64,9 +64,14 @@ export class Parser<T> {
   }
 
   /**
-   * Monadic bind — the L-attributed grammar combinator. Parse `this`; for
-   * each value `v`, call `fn(v)` to get the next parser. Result is `[v, w]`.
-   * See the README for L-attributed grammar usage.
+   * L-attributed bind — parse `this`; for each value `v`, call `fn(v)` to
+   * obtain the next parser and parse it. **Emits the pair `[v, w]`** — the
+   * attribute-grammar shape (inherited + synthesized values), NOT a monadic
+   * bind in result shape (a monadic bind would yield `Parser<U>`).
+   *
+   * Discard the first component when only the second value is needed:
+   * `.chain(fn).map(([, w]) => w)`. See the README for L-attributed grammar
+   * usage.
    */
   chain<U>(fn: (t: T) => Parser<U>): Parser<[T, U]> {
     return new Parser<[T, U]>(

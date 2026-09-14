@@ -90,10 +90,13 @@ export function seq<Ts extends readonly unknown[]>(
 }
 
 /**
- * Monadic bind — the L-attributed grammar combinator.
+ * L-attributed bind — parse `first`; for each value `v`, call `fn(v)` to
+ * obtain the next parser and parse it. **Emits the pair `[v, w]`** — the
+ * attribute-grammar shape (inherited + synthesized values), NOT a monadic
+ * bind in result shape (a monadic bind would yield `Parser<U>`).
  *
- * Parse `first`; for each value `v`, call `fn(v)` to obtain the next parser
- * and parse it. The result is the pair `[v, w]`.
+ * Discard the first component when only the second value is needed:
+ * `chain(first, fn).map(([, w]) => w)`.
  */
 export function chain<T, U>(
   first: Parser<T>,

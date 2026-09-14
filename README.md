@@ -187,6 +187,7 @@ The correspondence is direct:
 | Inherited attribute (top-down)   | `@rule expr(Γ)` method argument           |
 | Semantic rule in `[ brackets ]`  | `.map()` callback                          |
 | L-attributed (one-pass)          | `chain(first, fn)` — pair-emitting bind     |
+| L-attributed (one-pass, result-only) | `bind(first, fn)` — discards the pair's first component |
 | Two-phase evaluation             | `super.expr.map(evalFn)` (multi-pass)       |
 
 See [examples/arith.ts](examples/arith.ts) for the full arithmetic evaluator.
@@ -234,7 +235,20 @@ together.  This is the attribute-grammar shape, not a monadic bind's result
 shape (a monadic bind would yield only `w`), and it is what keeps the left
 siblings' values available to later `.chain`/`.map` callbacks.  When only
 the second value is needed, discard the first:
-`.map(([, result]) => result)`, as the example above does.
+`.map(([, result]) => result)`, as the example above does — or reach for
+the **result-only companion**, `bind`:
+
+```ts
+// bind(first, fn) ≡ chain(first, fn).map(([, result]) => result)
+bind(seq(/* ... */), ([, param, , , , ty, , , ]) =>
+    this.exprProd(this.extendCtx(ctx, param, ty))
+        .map((body) => this.lam(param, ty, body))
+)
+```
+
+`bind` has the monadic result shape (`Parser<U>`) because in L-attributed
+grammars the inherited value is already in scope via closure capture when
+the callback runs — the pair's first component would be discarded anyway.
 
 Without `chain`, `seq` builds all children eagerly at construction time, so
 the parsed `τ` cannot flow into `body`'s parser.  `chain` defers construction
@@ -674,6 +688,7 @@ Import from `@lapis-lang/lang-forma` and use without `this.`:
 | `or(...parsers)`      | Variadic alternation.                      |
 | `seq(...parsers)`     | Variadic concatenation; returns tuple.     |
 | `chain(first, fn)`    | L-attributed bind — emits the pair `[T, U]` (not a monadic bind's `Parser<U>`). Discard the first with `.map(([, w]) => w)`. |
+| `bind(first, fn)`     | L-attributed bind, result-only — yields `Parser<U>`. Like `chain` but skips the pair; use when the first value is available via closure capture. |
 | `sseq(ws, ...parsers)`| Sigspace sequence — auto-inserts `ws` (non-capturing) between terms. |
 | `plus(p)`             | One-or-more repetition (`A+`).             |
 | `star(p)`             | Zero-or-more repetition (`A*`); alias of `p.many()`. |
@@ -720,6 +735,7 @@ The `@rule` decorator can wrap either a **getter** or a **method**:
 | `then(other)`| A ○ B — parse trees are pairs `[T, U]`.        |
 | `map(f)`    | Semantic action. `f` receives `(value: T, span: Span)` where `Span = { start: number; end: number }` is the half-open character-offset range `[start, end)` of the matched input. |
 | `chain(fn)` | L-attributed bind. `fn` receives the parsed value `T` and returns a `Parser<U>`; result is the pair `Parser<[T, U]>` (not a monadic bind's `Parser<U>`). Enables L-attributed one-pass parsing. |
+| `bind(fn)`  | L-attributed bind, result-only. Like `chain(fn)` but yields `Parser<U>` — the pair's first component is skipped. |
 | `many()`    | A\* — parse trees are arrays `T[]`.             |
 | `opt()`     | A ∪ ε — parse trees are `T \| undefined`.       |
 

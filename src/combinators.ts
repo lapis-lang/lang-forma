@@ -96,7 +96,8 @@ export function seq<Ts extends readonly unknown[]>(
  * bind in result shape (a monadic bind would yield `Parser<U>`).
  *
  * Discard the first component when only the second value is needed:
- * `chain(first, fn).map(([, w]) => w)`.
+ * `chain(first, fn).map(([, w]) => w)` — or use {@link bind}, the
+ * result-only companion.
  */
 export function chain<T, U>(
   first: Parser<T>,
@@ -105,6 +106,19 @@ export function chain<T, U>(
   return new Parser<[T, U]>(
     new ChainExp<T, U>(first._exp, (v) => fn(v as T)._exp),
   );
+}
+
+/**
+ * L-attributed bind, result-only — like {@link chain} but emits only the
+ * second value: `Parser<U>` instead of `Parser<[T, U]>`. Use when the
+ * chain value is available via closure capture and the pair would be
+ * discarded. Equivalent to `chain(first, fn).map(([, u]) => u)`.
+ */
+export function bind<T, U>(
+  first: Parser<T>,
+  fn: (t: T) => Parser<U>,
+): Parser<U> {
+  return chain(first, fn).map(([, u]) => u);
 }
 
 /* ─── Sigspace sequence ──────────────────────────────────────────────── */

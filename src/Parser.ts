@@ -70,13 +70,24 @@ export class Parser<T> {
    * bind in result shape (a monadic bind would yield `Parser<U>`).
    *
    * Discard the first component when only the second value is needed:
-   * `.chain(fn).map(([, w]) => w)`. See the README for L-attributed grammar
-   * usage.
+   * `.chain(fn).map(([, w]) => w)` — or use {@link Parser.bind}, the
+   * result-only companion.
    */
   chain<U>(fn: (t: T) => Parser<U>): Parser<[T, U]> {
     return new Parser<[T, U]>(
       new ChainExp<T, U>(this._exp, (v) => fn(v as T)._exp),
     );
+  }
+
+  /**
+   * L-attributed bind, result-only — like {@link Parser.chain} but emits
+   * only the second value: `Parser<U>` instead of `Parser<[T, U]>`. Use
+   * when the first value is already in scope via closure capture and the
+   * pair would be discarded. Equivalent to
+   * `this.chain(fn).map(([, w]) => w)`.
+   */
+  bind<U>(fn: (t: T) => Parser<U>): Parser<U> {
+    return this.chain(fn).map(([, w]) => w);
   }
 
   /** A* — Kleene star; parse trees are arrays `T[]`. */

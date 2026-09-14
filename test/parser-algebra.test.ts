@@ -6,6 +6,7 @@
 
 import { assertEquals } from "@std/assert";
 import {
+  bind,
   chain,
   char,
   empty,
@@ -357,5 +358,102 @@ Deno.test("chain — epsilon as first or second", async (t) => {
   await t.step("epsilon second: ['a', 99]", () => {
     const p = chain(char("a"), () => epsilon(99));
     assertEquals(parse(p, "a"), [["a", 99]]);
+  });
+});
+
+/* ─── bind (result-only companion to chain) ─────────────────────────── */
+
+Deno.test("bind — yields only the second value", async (t) => {
+  const p = bind(char("a"), () => char("b").map(() => "second"));
+
+  await t.step("'ab' → ['second'] (no pair)", () => {
+    assertEquals(parse(p, "ab"), ["second"]);
+  });
+  await t.step("rejects 'ax'", () => {
+    assertEquals(parse(p, "ax"), []);
+  });
+});
+
+Deno.test("bind — second parser depends on first result", async (t) => {
+  // The first value reaches the callback; only the second flows upward.
+  const p = bind(
+    char("a").or(char("b")),
+    (x) => x === "a" ? char("1") : char("2"),
+  );
+
+  await t.step("'a1' → '1'", () => assertEquals(parse(p, "a1"), ["1"]));
+  await t.step("'b2' → '2'", () => assertEquals(parse(p, "b2"), ["2"]));
+  await t.step("'a2' rejected (wrong second)", () => {
+    assertEquals(parse(p, "a2"), []);
+  });
+});
+
+Deno.test("bind — method form mirrors the standalone combinator", async (t) => {
+  const standalone = bind(char("a"), () => char("b"));
+  const method = char("a").bind(() => char("b"));
+
+  await t.step("both yield 'b' on 'ab'", () => {
+    assertEquals(parse(standalone, "ab"), ["b"]);
+    assertEquals(parse(method, "ab"), ["b"]);
+  });
+});
+
+Deno.test("bind — composes with chain and map without pair leakage", async (t) => {
+  // bind → chain → bind: no [v, w] pair ever surfaces to a .map callback.
+  const p = bind(char("a"), () => char("b"))
+    .chain((b) => char("c").map((c) => `${b}${c}`))
+    .map(([, s]) => s)
+    .bind((s) => char("d").map((d) => `${s}${d}`));
+
+  await t.step("'abcd' → 'bcd'", () => {
+    assertEquals(parse(p, "abcd"), ["bcd"]);
+  });
+});
+
+Deno.test("bind — equivalence with chain + discard map", async (t) => {
+  const mk = (v: string) =>
+    char("a").or(char("b")).map(() => v).opt().map((o) => o ?? "none");
+  const f = (x: string) => char("1").or(char("2")).map((y) => x + y);
+
+  await t.step("bind(f, g) ≡ chain(f, g).map(([, u]) => u)", () => {
+    const viaBind = bind(mk("x"), f);
+    const viaChain = chain(mk("x"), f).map(([, u]) => u);
+    assertEquals(parse(viaBind, "x1"), parse(viaChain, "x1"));
+    assertEquals(parse(viaBind, "x9"), parse(viaChain, "x9"));
+    assertEquals(parse(viaBind, ""), parse(viaChain, ""));
+  });
+});
+
+Deno.test("bind — first parser ambiguity yields one result per derivation", async (t) => {
+  await t.step("distinct second values: one per derivation", () => {
+    // Two derivations of the first parser, each flowing a distinct second
+    // value upward — both survive the parse forest.
+    const p = bind(
+      char("a").map(() => 1).or(char("a").map(() => 2)),
+      (x) => epsilon(x * 10),
+    );
+    assertEquals(new Set(parse(p, "a")), new Set([10, 20]));
+  });
+
+  await t.step("equal second values collapse in the value Set", () => {
+    // The forest is a Set of values: both derivations complete, but equal
+    // results dedupe (chain's pairs are distinct objects, so they would not).
+    const p = bind(char("a").or(char("a")), () => char("b"));
+    assertEquals(parse(p, "ab"), ["b"]);
+  });
+});
+
+Deno.test("bind — failure modes", async (t) => {
+  await t.step("first parser fails → empty forest", () => {
+    assertEquals(parse(bind(empty(), () => char("b")), "b"), []);
+  });
+  await t.step("second parser fails → empty forest", () => {
+    assertEquals(parse(bind(char("a"), () => empty()), "a"), []);
+  });
+  await t.step("throwing callback drops the branch", () => {
+    const p = bind(char("a"), () => {
+      throw new Error("boom");
+    });
+    assertEquals(parse(p, "a"), []);
   });
 });

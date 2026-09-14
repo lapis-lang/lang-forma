@@ -16,6 +16,7 @@ export type { Pos, Span, Tok } from "./zipper.ts";
 
 export {
   between,
+  bind,
   chain,
   char,
   diagnostic,
